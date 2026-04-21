@@ -1,0 +1,39 @@
+1) Initialize Git in your project
+
+Open the terminal in VS Code:
+
+git init
+2) Add your files
+git add .
+3) Commit
+git commit -m "Initial commit"
+4) Create a repo on GitHub
+
+Go to GitHub → click New Repository → create it
+⚠️ Don’t add a README if you already committed locally (avoids conflicts)
+
+5) Link your local repo to GitHub
+
+Copy your repo URL, then run:
+
+git remote add origin https://github.com/your-username/your-repo.git
+6) Push it
+git branch -M main
+git push -u origin main
+That’s it.
+
+After this, future pushes are just:
+
+git add .
+git commit -m "update"
+git push
+Quick sanity checks (if something fails)
+
+Check Git is installed:
+
+git --version
+If push asks for login → use GitHub credentials or a Personal Access Token
+
+If repo already has content → you may need:
+
+git pull --rebase origin main

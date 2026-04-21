@@ -11,9 +11,25 @@ body {
 }
 
 .app {
-  max-width: 900px;
+  max-width: 1500px;
   margin: 0 auto;
   padding: 2rem 1rem;
+}
+
+.app-main {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.panel-form {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-preview {
+  width: 420px;
+  flex-shrink: 0;
 }
 
 .app-header {

@@ -5,30 +5,8 @@ const API_URL = 'http://localhost:5000'
 const emptyLine = () => ({ text: '' })
 const emptySection = () => ({ title: '', price: '', lines: [emptyLine()] })
 
-const today = () => {
-  const d = new Date()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${mm}/${dd}/${d.getFullYear()}`
-}
-
-export default function EstimateForm() {
+export default function EstimateForm({ form, setForm, sections, setSections }) {
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
-    estimate_number: '',
-    estimate_date: today(),
-    prepared_for: '',
-    managed_by: '',
-    contact_name: '',
-    contact_email: '',
-    project_location: '',
-    project_name: '',
-    quote: '',
-    total: '',
-    additional_notes: '',
-    payment_terms: 'Net 30',
-  })
-  const [sections, setSections] = useState([emptySection()])
 
   const updateField = (key, value) => {
     setForm(prev => ({ ...prev, [key]: value }))
