@@ -1,0 +1,40 @@
+{
+  "templates": [
+    {
+      "id": "estimate",
+      "name": "Estimate",
+      "file": "estimate.docx",
+      "fields": [
+        { "key": "estimate_number", "label": "Estimate Number", "type": "text", "required": true },
+        { "key": "estimate_date", "label": "Date", "type": "date", "required": true },
+        { "key": "prepared_for", "label": "Prepared For (Address)", "type": "textarea", "required": true },
+        { "key": "managed_by", "label": "Managed By", "type": "textarea", "required": true },
+        { "key": "contact_name", "label": "Contact Name", "type": "text", "required": true },
+        { "key": "contact_email", "label": "Contact Email", "type": "email", "required": true },
+        { "key": "project_location", "label": "Project Location", "type": "textarea", "required": true },
+        { "key": "project_name", "label": "Project Name", "type": "text", "required": true },
+        { "key": "quote", "label": "Quote Amount", "type": "currency", "required": true },
+        { "key": "total", "label": "Total Estimated Cost", "type": "currency", "required": true },
+        { "key": "additional_notes", "label": "Additional Notes", "type": "textarea", "required": false },
+        { "key": "payment_terms", "label": "Payment Terms", "type": "text", "required": false }
+      ],
+      "sections": {
+        "key": "sections",
+        "label": "Scope of Work",
+        "fields": [
+          { "key": "num", "label": "Section #", "type": "auto" },
+          { "key": "title", "label": "Section Title", "type": "text", "required": true },
+          { "key": "price", "label": "Section Price", "type": "currency", "required": true }
+        ],
+        "lines": {
+          "key": "lines",
+          "label": "Line Items",
+          "fields": [
+            { "key": "lineNum", "label": "Line #", "type": "auto" },
+            { "key": "text", "label": "Description", "type": "text", "required": true }
+          ]
+        }
+      }
+    }
+  ]
+}
