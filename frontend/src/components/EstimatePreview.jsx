@@ -1,100 +1,100 @@
 import './EstimatePreview.css'
 
-export default function EstimatePreview({ form, sections }) {
+export default function EstimatePreview({ form, sections, total, fmt }) {
   return (
-    <div className="preview-container">
-      <div className="preview-page">
-        {/* Header */}
-        <div className="preview-header-bar">
-          <div className="preview-title">ESTIMATE</div>
-          <div className="preview-subtitle">Construction Services</div>
+    <div className="preview-doc">
+      {/* Header */}
+      <div className="preview-doc-header">
+        <div className="preview-doc-header-left">
+          <div className="company-name">KG CONSTRUCTION CORP</div>
+          <div className="company-sub">ESTIMATE · LICENSE #611502</div>
         </div>
-
-        {/* Info Table */}
-        <table className="preview-info-table">
-          <tbody>
-            <tr>
-              <td className="info-label">ESTIMATE #:</td>
-              <td className="info-value">{form.estimate_number || '—'}</td>
-            </tr>
-            <tr>
-              <td className="info-label">Date:</td>
-              <td className="info-value">{form.estimate_date || '—'}</td>
-            </tr>
-            <tr>
-              <td className="info-label">Prepared For:</td>
-              <td className="info-value info-bold">{form.prepared_for ? form.prepared_for.split('\n').map((l, i) => <span key={i}>{l}<br/></span>) : '—'}</td>
-            </tr>
-            <tr>
-              <td className="info-label">Managed By:</td>
-              <td className="info-value">
-                {form.managed_by ? form.managed_by.split('\n').map((l, i) => <span key={i}>{l}<br/></span>) : '—'}
-                <div className="info-sublabel">Point of Contact:</div>
-                <div>{form.contact_name || '—'}</div>
-                <div>{form.contact_email || '—'}</div>
-              </td>
-            </tr>
-            <tr>
-              <td className="info-label">Project Location:</td>
-              <td className="info-value info-bold">{form.project_location ? form.project_location.split('\n').map((l, i) => <span key={i}>{l}<br/></span>) : '—'}</td>
-            </tr>
-            <tr>
-              <td className="info-label">Prepared By:</td>
-              <td className="info-value">
-                <strong>KG Construction Corp</strong><br/>
-                <em>License Number: 611502</em>
-              </td>
-            </tr>
-            <tr>
-              <td className="info-label">Quote:</td>
-              <td className="info-value info-bold">${form.quote || '0.00'}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Project Name */}
-        <div className="preview-project-name">
-          <span className="project-name-accent"></span>
-          <span><strong>Project Name:</strong> {form.project_name || '—'}</span>
+        <div className="preview-doc-header-right">
+          <div className="est-label">ESTIMATE</div>
+          <div className="est-number">{form.estimateNumber || '—'}</div>
         </div>
+      </div>
 
-        {/* Scope of Work */}
-        <div className="preview-scope-header">SCOPE OF WORK</div>
-        <p className="preview-scope-intro">
-          The following work will be performed by KG Construction Corp at the above-referenced project location:
+      {/* Meta Grid */}
+      <div className="preview-meta-grid">
+        <div className="preview-meta-cell">
+          <div className="preview-meta-label">Date</div>
+          <div className="preview-meta-value">{form.date || '—'}</div>
+        </div>
+        <div className="preview-meta-cell">
+          <div className="preview-meta-label">Project</div>
+          <div className="preview-meta-value">{form.projectName || '—'}</div>
+        </div>
+        <div className="preview-meta-cell">
+          <div className="preview-meta-label">Client</div>
+          <div className="preview-meta-value">{form.preparedFor || '—'}</div>
+        </div>
+        <div className="preview-meta-cell">
+          <div className="preview-meta-label">Location</div>
+          <div className="preview-meta-value">{form.projectLocation || '—'}</div>
+        </div>
+        <div className="preview-meta-cell">
+          <div className="preview-meta-label">Managed by</div>
+          <div className="preview-meta-value">{form.managedBy || '—'}</div>
+        </div>
+        <div className="preview-meta-cell">
+          <div className="preview-meta-label">Contact</div>
+          <div className="preview-meta-value">
+            {form.contactName ? `${form.contactName}${form.contactEmail ? ` · ${form.contactEmail}` : ''}` : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Scope of Work */}
+      <div className="preview-scope-label">Scope of Work</div>
+      {sections.map((sec, si) => (
+        <div key={sec.id} className="preview-section">
+          <div className="preview-section-bar">
+            <div className="preview-section-bar-left">
+              <span className="preview-section-num">{si + 1}</span>
+              <span className="preview-section-title">{sec.title || 'Untitled Section'}</span>
+            </div>
+            <span className="preview-section-price">${sec.price || '0.00'}</span>
+          </div>
+          {sec.lines.filter(l => l.description).map((line, li) => (
+            <div key={line.id} className="preview-line-item">
+              <div className="preview-line-item-left">
+                <span className="preview-line-item-num">{si + 1}.{li + 1}</span>
+                <span className="preview-line-item-desc">{line.description}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* Total */}
+      <div className="preview-total-bar">
+        <span className="preview-total-label">Total Estimated Cost</span>
+        <span className="preview-total-value">${fmt(total)}</span>
+      </div>
+
+      {/* Notes */}
+      {form.additionalNotes && (
+        <div className="preview-notes">
+          <div className="preview-notes-header">Additional Notes</div>
+          <p>{form.additionalNotes}</p>
+        </div>
+      )}
+
+      {/* Payment Terms */}
+      {form.paymentTerms && (
+        <div className="preview-payment">
+          <div className="preview-payment-header">Payment Terms</div>
+          <p>{form.paymentTerms}</p>
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="preview-footer">
+        <p>
+          This estimate is valid for 30 days from the date issued.<br/>
+          KG Construction Corp · License #611502
         </p>
-
-        {sections.map((section, sIdx) => (
-          <div key={sIdx} className="preview-section">
-            <div className="preview-section-bar">
-              <span className="preview-section-num">{sIdx + 1}</span>
-              <span className="preview-section-title">{section.title || 'Untitled Section'}</span>
-              <span className="preview-section-price">${section.price || '0.00'}</span>
-            </div>
-            <div className="preview-lines">
-              {section.lines.map((line, lIdx) => (
-                <div key={lIdx} className="preview-line">
-                  <span className="preview-line-num">{sIdx + 1}.{lIdx + 1}</span>
-                  <span className="preview-line-text">{line.text || '...'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {/* Total */}
-        <div className="preview-total-bar">
-          <span className="preview-total-label">TOTAL ESTIMATED COST</span>
-          <span className="preview-total-value">${form.total || '0.00'}</span>
-        </div>
-
-        {/* Additional Notes */}
-        {form.additional_notes && (
-          <div className="preview-notes">
-            <div className="preview-notes-header">Additional Notes</div>
-            <p>{form.additional_notes}</p>
-          </div>
-        )}
       </div>
     </div>
   )
