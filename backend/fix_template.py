@@ -1,7 +1,17 @@
 """
-Fixes Word templates where Jinja2 tokens are split across multiple XML runs.
-Takes a brute-force approach: for each paragraph, collects all run text,
-detects Jinja2 patterns, and rebuilds runs to keep tokens intact.
+One-time template repair utility.
+
+Word frequently splits text across multiple XML runs when editing, which
+breaks Jinja2 tokens like {{ variable }}. This script reassembles split
+tokens by collecting all run text in each paragraph, finding Jinja2 patterns,
+and rebuilding runs so each token lives in a single run.
+
+Also applies brand formatting (orange bold for line numbers, bold for
+project_location) and converts loops to paragraph-level ({%p %}) to
+prevent empty paragraphs in the rendered output.
+
+Usage: Edit 'Estimate Template.docx' in Word, then run this script.
+       Output goes to 'templates/estimate.docx' (the file the server uses).
 """
 import re
 import os
@@ -15,36 +25,50 @@ XML_SPACE = '{http://www.w3.org/XML/1998/namespace}space'
 
 
 def tag(name):
+    """Build a fully-qualified Word XML tag, e.g. tag('p') → '{...}p'."""
     return f'{{{W}}}{name}'
 
 
 def get_runs(para):
+    """Return all <w:r> (run) elements that are direct children of a paragraph."""
     return para.findall(tag('r'))
 
 
 def get_run_text(run):
+    """Extract the text content of a run's <w:t> element."""
     t = run.find(tag('t'))
     return t.text if t is not None and t.text else ''
 
 
 def set_run_text(run, text):
+    """Set a run's text, creating the <w:t> element if needed."""
     t = run.find(tag('t'))
     if t is None:
         t = etree.SubElement(run, tag('t'))
     t.text = text
+    # xml:space="preserve" prevents Word from collapsing whitespace.
     if text and (' ' in text or text != text.strip()):
         t.set(XML_SPACE, 'preserve')
 
 
 def get_run_props(run):
+    """Return the <w:rPr> (run properties / formatting) element, or None."""
     return run.find(tag('rPr'))
 
 
 def has_jinja(text):
+    """Check if text contains any Jinja2-like token syntax."""
     return '{{' in text or '{%' in text or re.search(r'\{[a-zA-Z_]', text)
 
 
 def fix_paragraph(para):
+    """Reassemble Jinja2 tokens that Word split across multiple runs.
+
+    Strategy: concatenate all run text, regex-find token boundaries, check if
+    any token spans more than one run. If so, rebuild the paragraph's runs so
+    each token is contained in a single run, inheriting the formatting of the
+    run where the token started.
+    """
     runs = get_runs(para)
     if len(runs) < 2:
         return
@@ -53,14 +77,14 @@ def fix_paragraph(para):
     if not has_jinja(full_text):
         return
 
-    # Build a map: for each character in full_text, which run index does it belong to?
+    # Map each character position to its source run index.
     char_to_run = []
     for ri, run in enumerate(runs):
         txt = get_run_text(run)
         for _ in txt:
             char_to_run.append(ri)
 
-    # Find all token spans in full_text
+    # Locate every Jinja2 token's character span.
     token_spans = []
     for m in re.finditer(r'\{\{.*?\}\}|\{%.*?%\s*\}|\{[a-zA-Z_][\w.]*\}', full_text):
         token_spans.append((m.start(), m.end()))
@@ -68,7 +92,7 @@ def fix_paragraph(para):
     if not token_spans:
         return
 
-    # Check if any token spans multiple runs — if not, nothing to fix
+    # Only rebuild if at least one token crosses a run boundary.
     needs_fix = False
     for start, end in token_spans:
         if end > start and char_to_run[start] != char_to_run[end - 1]:
@@ -77,8 +101,8 @@ def fix_paragraph(para):
     if not needs_fix:
         return
 
-    # Rebuild: create segments that are either plain text or tokens,
-    # each assigned to the run formatting of its first character.
+    # Split the full text into segments: plain text between tokens, and the
+    # tokens themselves. Each segment inherits formatting from its first char.
     segments = []
     pos = 0
     for start, end in token_spans:
@@ -89,17 +113,16 @@ def fix_paragraph(para):
     if pos < len(full_text):
         segments.append(('text', full_text[pos:], char_to_run[pos]))
 
-    # Get formatting from each original run
+    # Snapshot formatting before removing original runs.
     run_formats = []
     for run in runs:
         rpr = get_run_props(run)
         run_formats.append(deepcopy(rpr) if rpr is not None else None)
 
-    # Remove all existing runs from paragraph
     for run in runs:
         para.remove(run)
 
-    # Create new runs from segments
+    # Rebuild: one run per segment, cloning the original run's formatting.
     for seg_type, text, orig_run_idx in segments:
         new_run = etree.SubElement(para, tag('r'))
         if run_formats[orig_run_idx] is not None:
@@ -108,7 +131,7 @@ def fix_paragraph(para):
 
 
 def make_rpr(parent, color_val, bold=False, size='21'):
-    """Create a run properties element with given color and optional bold."""
+    """Build a <w:rPr> element with color, optional bold, and font size (half-points)."""
     W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
     rpr = etree.SubElement(parent, tag('rPr'))
     if bold:
@@ -124,8 +147,12 @@ def make_rpr(parent, color_val, bold=False, size='21'):
 
 
 def fix_line_item_formatting(root):
-    """Set {{line.lineNum}} to orange bold and {{line.text}} to gray.
-    Handles both: tokens in one run or already in separate runs."""
+    """Apply brand formatting to line-item tokens in the template.
+
+    {{line.lineNum}} → orange (#E8600A) bold
+    {{line.text}}    → charcoal gray (#4A4A4A)
+    Handles both cases: both tokens in a single run, or already separate.
+    """
     for para in root.iter(tag('p')):
         runs = get_runs(para)
         for run in runs:
@@ -177,8 +204,14 @@ def fix_project_location_bold(root):
 
 
 def fix_spacing_around_loops(root):
-    """Clean up empty paragraphs near loops, insert spacing between sections,
-    and add spacing after the intro text."""
+    """Manage whitespace around Jinja2 loop constructs in the template.
+
+    Word inserts empty paragraphs around {%p for %} / {%p endfor %} blocks.
+    This function: (1) keeps one thin spacer between inner and outer endfor
+    tags for visual section separation, (2) removes all other empty paragraphs
+    adjacent to loop markers, (3) adds spacing after the "work will be
+    performed" intro paragraph, and (4) adds spacing before Terms & Conditions.
+    """
     W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
     body = root.find(tag('body'))
     if body is None:
@@ -281,24 +314,33 @@ def fix_spacing_around_loops(root):
 
 
 def fix_known_issues(xml_text):
-    """Fix known issues that can't be handled by run-merging alone."""
+    """Text-level fixes for issues that can't be solved by run-merging.
+
+    Repairs common Word-editing artifacts:
+    - '#sections' typo → 'section' (Word sometimes inserts # from autocorrect)
+    - Single-braced tokens → double-braced (Word sometimes eats a brace)
+    - Normalizes endfor whitespace
+    - Converts {% %} to {%p %} (paragraph-level loops) so docxtpl removes
+      the containing paragraph instead of leaving an empty line
+    """
     xml_text = xml_text.replace('{% for #sections in sections %}', '{% for section in sections %}')
-    # Only convert single-braced tokens if not already double-braced
     if '{{project_name}}' not in xml_text:
         xml_text = xml_text.replace('{project_name}', '{{project_name}}')
     if '{{payment_terms}}' not in xml_text:
         xml_text = xml_text.replace('{payment_terms}', '{{payment_terms}}')
     xml_text = re.sub(r'\{%\s*endfor\s*%\s*\}', '{% endfor %}', xml_text)
-    # Use {%p %} for paragraph-level loops to remove empty paragraphs
     xml_text = xml_text.replace('{% for section in sections %}', '{%p for section in sections %}')
     xml_text = xml_text.replace('{% for line in section.lines %}', '{%p for line in section.lines %}')
-    # Replace endfor — need to handle both (inner lines endfor, outer sections endfor)
-    # docxtpl needs {%p endfor %} to remove the paragraph
     xml_text = xml_text.replace('{% endfor %}', '{%p endfor %}')
     return xml_text
 
 
 def fix_template(input_path, output_path):
+    """Main entry point: read a .docx, apply all fixes, write the result.
+
+    A .docx file is a ZIP archive. We extract it to a temp directory, parse
+    and modify word/document.xml, then re-zip everything into the output path.
+    """
     temp_dir = input_path + '_temp_fix'
     os.makedirs(temp_dir, exist_ok=True)
 
@@ -309,6 +351,7 @@ def fix_template(input_path, output_path):
     tree = etree.parse(xml_path)
     root = tree.getroot()
 
+    # Pass 1: XML-level fixes (operate on parsed element tree).
     for para in root.iter(tag('p')):
         fix_paragraph(para)
 
@@ -318,13 +361,14 @@ def fix_template(input_path, output_path):
 
     tree.write(xml_path, xml_declaration=True, encoding='UTF-8', standalone=True)
 
-    # Apply text-level fixes for known issues
+    # Pass 2: text-level fixes (string replacements on serialized XML).
     with open(xml_path, 'r', encoding='utf-8') as f:
         xml_text = f.read()
     xml_text = fix_known_issues(xml_text)
     with open(xml_path, 'w', encoding='utf-8') as f:
         f.write(xml_text)
 
+    # Re-package the modified files back into a .docx ZIP.
     with ZipFile(output_path, 'w') as zout:
         for dirpath, dirnames, filenames in os.walk(temp_dir):
             for fn in filenames:

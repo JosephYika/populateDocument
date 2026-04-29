@@ -29,34 +29,42 @@ Construction estimate document generator for **KG Construction Corp**.
 ```
 populateTemplate/
   CLAUDE.md
+  Client_Directory.xlsx       # Source Excel spreadsheet for client data import
+  Estimate Template.docx      # Reference copy of the estimate template
   Project Notes/
     Commands.txt              # Git cheat-sheet for the developer
   templates/
     config.json               # Template registry — field schemas, section/line definitions
     estimate.docx             # The actual Word template with Jinja2 tokens
   backend/
-    server.py                 # Flask app — /api/templates, /api/generate endpoints
+    server.py                 # Flask app — all API endpoints (templates, generate, CRUD, search)
+    models.py                 # SQLAlchemy models — ManagementCompany, PropertyManager, Client
+    kg_construction.db        # SQLite database
     fix_template.py           # One-time utility — fixes split Jinja2 tokens in .docx XML
     test_generate.py          # Standalone test script — renders estimate.docx with sample data
+    alembic.ini               # Alembic migration config
+    alembic/                  # Database migrations
+  scripts/
+    import_from_excel.py      # Idempotent Excel import from Client_Directory.xlsx
   frontend/
     index.html                # Shell HTML — loads Google Fonts (DM Sans, DM Mono)
     package.json              # React 19, Vite 8, ESLint
     vite.config.js
-    public/
-      favicon.svg             # Vite default (purple lightning bolt — not branded yet)
-      icons.svg               # SVG sprite sheet (Bluesky, Discord, GitHub, X icons — unused)
     src/
-      main.jsx                # React entry — StrictMode, mounts <App/>
+      main.jsx                # React entry — StrictMode, hash-based router (App / AdminPage)
       App.jsx                 # Root component — state, layout, header with running total
-      App.css                 # Global styles — variables, header, layout grid, form, buttons
-      index.css               # CSS reset (handled in App.css, this file is empty placeholder)
+      App.css                 # Global styles — variables, header, layout grid, form, admin, buttons
+      config.js               # Shared constants (API_URL)
+      utils/
+        uid.js                # Auto-incrementing ID generator for React keys
       components/
         EstimateForm.jsx      # Form component — all fields, scope sections, submit handler
         EstimatePreview.jsx   # Preview component — document-style live render
         EstimatePreview.css   # Preview styles — header banner, meta grid, scope, footer
+        SearchableSelect.jsx  # Searchable select components — ClientSelect, CompanySelect, ManagerSelect
+        AdminPage.jsx         # Admin CRUD UI — clients, companies, managers tabs
       assets/
         hero.png              # KG Construction hero image
-        react.svg, vite.svg   # Default Vite scaffold assets (unused)
 ```
 
 ## Backend Details
@@ -67,6 +75,11 @@ populateTemplate/
 |----------|--------|-------------|
 | `/api/templates` | GET | Returns template list from `config.json` |
 | `/api/generate` | POST | Accepts `{ template, data }`, renders the Word doc, returns `.docx` download |
+| `/api/clients/search` | GET | Search clients by address, unit, building, owner. Params: `q`, `limit` |
+| `/api/companies/search` | GET | Search companies by name. Params: `q`, `limit` |
+| `/api/managers/search` | GET | Search managers by name/email. Params: `q`, `limit`, `company_id` |
+| `/api/{clients,companies,managers}` | GET/POST | List all (active) or create new |
+| `/api/{clients,companies,managers}/<id>` | GET/PUT/DELETE | Read, update, or soft-delete (archive) |
 
 ### Payload Structure (POST /api/generate)
 
@@ -77,7 +90,7 @@ populateTemplate/
     "estimate_number": "1050",
     "estimate_date": "04/24/2026",
     "prepared_for": "Client Name\n123 Main St",
-    "managed_by": "Manager Name",
+    "managed_by": "Company Name\n123 Company Address",
     "contact_name": "Contact",
     "contact_email": "contact@email.com",
     "project_location": "Site Address",
@@ -111,10 +124,13 @@ Multiline fields (`prepared_for`, `managed_by`, `project_location`, `additional_
 One-time utility that repairs Word templates where Jinja2 tokens get split across multiple XML runs (common when editing in Word). It:
 - Detects split `{{ }}` and `{% %}` tokens across runs
 - Rebuilds paragraph runs to keep tokens intact
+- Fixes common Word-editing artifacts (`#sections`, `% }` spacing, single-brace tokens)
 - Applies formatting: orange bold for `{{line.lineNum}}`, gray for `{{line.text}}`
 - Makes `{{project_location}}` bold
 - Cleans up empty paragraphs near loop constructs
 - Converts `{% for %}` to `{%p for %}` (paragraph-level loops for cleaner output)
+
+**Workflow:** Edit `Estimate Template.docx` in Word, then run `python backend/fix_template.py` to repair tokens and output to `templates/estimate.docx`.
 
 ### Template Config (`templates/config.json`)
 
@@ -138,12 +154,12 @@ All state lives in `App.jsx` via `useState`:
 - `sections` — array of `{ id, title, price, lines: [{ id, description }] }`
 - `loading` — boolean for submit button state
 
-Each section and line gets a unique `id` via the `uid()` counter (exported from App for use in EstimateForm).
+Each section and line gets a unique `id` via the `uid()` counter (`utils/uid.js`).
 
 ### Key Helpers
 
 - **`fmt(n)`** — Formats number with 2 decimal places, comma separators. Returns number string only (no `$`); dollar sign added in JSX.
-- **`uid()`** — Auto-incrementing ID generator for React keys on dynamic sections/lines.
+- **`uid()`** — Auto-incrementing ID generator for React keys on dynamic sections/lines. Lives in `utils/uid.js`.
 - **`formatCurrency(value)`** — In EstimateForm, formats price inputs on blur (strips commas, re-formats).
 - **`today()`** — Returns current date as `MM/DD/YYYY` string for the default date field.
 
@@ -235,27 +251,28 @@ The header building icon is inline SVG in `App.jsx`.
 
 Custom webkit scrollbar: 6px wide, transparent track, border-colored thumb with 3px radius.
 
-## Current State (2026-04-24)
+## Current State (2026-04-27)
 
 ### What's Done
-- Full UI redesign implemented from Claude Design handoff
-- Sticky header, card-based form layout, live document preview
-- DM Sans + DM Mono typography loaded via Google Fonts
-- Brand color `#C05008` applied across all elements
-- Payment Terms converted to dropdown with 4 predefined options
-- Default Additional Notes disclaimer text
+- Full UI redesign — sticky header, card-based form, live document preview
+- DM Sans + DM Mono typography, brand color `#C05008` throughout
+- Payment Terms dropdown (4 options), default Additional Notes disclaimer
 - Section-level pricing with auto-sum into quote/total
-- Scope of Work price input styled as white pill with `$` prefix in brand orange
-- Placeholders: Estimate Number "1050", Project Name "System Winterization & Shut Off"
 - Backend multiline handling with `||BR||` marker and XML post-processing
 - Template fixer utility for repairing split Jinja2 tokens
-- Test script with sample data for standalone doc generation
-- All redesign changes committed to git
+- SQLite database with SQLAlchemy ORM + Alembic migrations
+- Searchable select dropdowns (react-select) for client, company, manager
+- Cascading auto-fill: selecting a client populates address, company, manager, email
+- Managed By field populates with company name + address (multiline)
+- Admin UI at `#/admin` for CRUD management of all entities (soft-delete/archive)
+- Excel import script for initial data load from Client_Directory.xlsx
+- Shared `API_URL` constant in `config.js`, `uid()` extracted to `utils/uid.js`
+- Codebase cleanup: removed dead code, deduplicated SearchableSelect exports (creatable prop), deleted unused scaffold files
+- Updated estimate template: T&C review notice, check payment address, fixed section numbering, consolidated terms
 
 ### What's Not Yet Done
-- Preview multiline fields (prepared_for, project_location, managed_by) don't render line breaks in the preview component
+- Preview multiline fields (prepared_for, project_location) don't render line breaks in the preview component
 - No responsive/mobile layout adjustments
 - No form validation beyond HTML `required` attributes
 - No localStorage persistence for form data
-- Favicon is still the default Vite lightning bolt (not branded)
-- `icons.svg` sprite sheet and `react.svg`/`vite.svg` assets are unused scaffold leftovers
+- No branded favicon

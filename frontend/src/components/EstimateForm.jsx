@@ -1,7 +1,17 @@
-import { uid } from '../App'
+/**
+ * Estimate form component — all data entry fields, scope-of-work sections,
+ * and the generate/submit handler.
+ *
+ * Organized into three card sections:
+ *   1. Project Details (client, address, contacts via searchable selects)
+ *   2. Scope of Work (dynamic sections with numbered line items)
+ *   3. Summary & Terms (auto-summed totals, notes, payment terms, generate button)
+ */
+import { uid } from '../utils/uid'
+import { ClientSelect, CompanySelect, ManagerSelect } from './SearchableSelect'
+import { API_URL } from '../config'
 
-const API_URL = 'http://localhost:5000'
-
+/** Predefined payment term options — value is the full text inserted into the doc. */
 const PAYMENT_OPTIONS = [
   { value: '', label: '— Select Payment Terms —' },
   { value: 'Full payment (100%) is due upon completion of the project.', label: 'Option 1 — 100% upon completion' },
@@ -10,14 +20,83 @@ const PAYMENT_OPTIONS = [
   { value: '60% of the total contract amount is due before work begins, and the remaining 40% is due at the final stage of the project.', label: 'Option 4 — 60% upfront / 40% final stage' },
 ]
 
+/** Format raw input to "1,234.00" on blur. Returns original value if not a number. */
 const formatCurrency = (value) => {
   const num = parseFloat(String(value).replace(/,/g, ''))
   if (isNaN(num)) return value
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function EstimateForm({ form, setForm, sections, setSections, total, fmt, loading, setLoading }) {
+export default function EstimateForm({ form, setForm, sections, setSections, total, fmt, loading, setLoading,
+  selectedClient, setSelectedClient, selectedCompany, setSelectedCompany, selectedManager, setSelectedManager }) {
   const updateField = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
+
+  // Cascading auto-fill: selecting a client populates address, company,
+  // manager, and contact fields from the client's linked records.
+  const handleClientSelect = (option) => {
+    setSelectedClient(option)
+    if (!option) {
+      setForm(prev => ({ ...prev, preparedFor: '', projectLocation: '' }))
+      return
+    }
+    if (option.__isNew__) {
+      setForm(prev => ({ ...prev, preparedFor: option.label, projectLocation: option.label }))
+      return
+    }
+    const c = option.data
+    const addr = c.address + (c.unit ? `, ${c.unit}` : '')
+    const updates = { preparedFor: addr, projectLocation: addr }
+    if (c.company) {
+      setSelectedCompany({ value: c.company.id, label: c.company.name, data: c.company })
+      updates.managedBy = c.company.address ? `${c.company.name}\n${c.company.address}` : c.company.name
+    } else {
+      setSelectedCompany(null)
+      updates.managedBy = ''
+    }
+    // Route contact info based on billing preference: direct-to-client uses
+    // the owner's details, otherwise use the property manager's.
+    if (c.send_directly_to_client) {
+      setSelectedManager(null)
+      updates.contactName = c.owner_name || ''
+      updates.contactEmail = c.client_email || ''
+    } else if (c.manager) {
+      setSelectedManager({ value: c.manager.id, label: c.manager.name, data: c.manager })
+      updates.contactName = c.manager.name || ''
+      updates.contactEmail = c.manager.email || ''
+    } else {
+      setSelectedManager(null)
+      updates.contactName = ''
+      updates.contactEmail = ''
+    }
+    setForm(prev => ({ ...prev, ...updates }))
+  }
+
+  const handleCompanySelect = (option) => {
+    setSelectedCompany(option)
+    if (!option) {
+      updateField('managedBy', '')
+    } else if (option.__isNew__) {
+      updateField('managedBy', option.label)
+    } else {
+      const co = option.data
+      updateField('managedBy', co.address ? `${co.name}\n${co.address}` : co.name)
+    }
+  }
+
+  const handleManagerSelect = (option) => {
+    setSelectedManager(option)
+    if (!option) {
+      setForm(prev => ({ ...prev, contactName: '', contactEmail: '' }))
+    } else if (option.__isNew__) {
+      setForm(prev => ({ ...prev, contactName: option.label, contactEmail: '' }))
+    } else {
+      setForm(prev => ({
+        ...prev,
+        contactName: option.data.name || '',
+        contactEmail: option.data.email || '',
+      }))
+    }
+  }
 
   const updateSection = (si, field, val, li) => {
     setSections(prev => prev.map((s, i) => {
@@ -39,10 +118,13 @@ export default function EstimateForm({ form, setForm, sections, setSections, tot
   const addLine = (si) => setSections(prev => prev.map((s, i) => i === si ? { ...s, lines: [...s.lines, { id: uid(), description: '' }] } : s))
   const removeLine = (si, li) => setSections(prev => prev.map((s, i) => i === si ? { ...s, lines: s.lines.filter((_, j) => j !== li) } : s))
 
+  /** Submit: POST form data to the backend, receive a .docx blob, trigger download. */
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
 
+    // Transform frontend state into the flat payload structure the backend expects.
+    // Field keys use snake_case to match the Word template's Jinja2 tokens.
     const payload = {
       template: 'estimate',
       data: {
@@ -83,6 +165,7 @@ export default function EstimateForm({ form, setForm, sections, setSections, tot
         return
       }
 
+      // Create a temporary object URL from the blob and trigger a download.
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -138,7 +221,11 @@ export default function EstimateForm({ form, setForm, sections, setSections, tot
             </div>
             <div className="field">
               <label>Prepared For (Address) <span className="required">*</span></label>
-              <textarea rows={2} value={form.preparedFor} onChange={e => updateField('preparedFor', e.target.value)} placeholder="Client name and address" required />
+              <ClientSelect
+                value={selectedClient}
+                onChange={handleClientSelect}
+                placeholder="Search clients or type an address…"
+              />
             </div>
             <div className="field">
               <label>Project Location <span className="required">*</span></label>
@@ -146,11 +233,20 @@ export default function EstimateForm({ form, setForm, sections, setSections, tot
             </div>
             <div className="field half">
               <label>Managed By <span className="required">*</span></label>
-              <input type="text" value={form.managedBy} onChange={e => updateField('managedBy', e.target.value)} placeholder="Project manager" required />
+              <CompanySelect
+                value={selectedCompany}
+                onChange={handleCompanySelect}
+                placeholder="Search or type company…"
+              />
             </div>
             <div className="field half">
               <label>Contact Name <span className="required">*</span></label>
-              <input type="text" value={form.contactName} onChange={e => updateField('contactName', e.target.value)} placeholder="Primary contact" required />
+              <ManagerSelect
+                value={selectedManager}
+                onChange={handleManagerSelect}
+                placeholder="Search or type name…"
+                companyId={selectedCompany?.value}
+              />
             </div>
             <div className="field">
               <label>Contact Email <span className="required">*</span></label>

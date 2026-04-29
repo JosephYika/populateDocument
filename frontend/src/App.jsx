@@ -1,16 +1,24 @@
+/**
+ * Root component — owns all form state and renders the two-column layout:
+ *   Left:  EstimateForm (data entry)
+ *   Right: EstimatePreview (live document preview, updates as user types)
+ *
+ * The sticky header displays the company name and a running total that
+ * auto-sums from section prices.
+ */
 import { useState } from 'react'
 import EstimateForm from './components/EstimateForm'
 import EstimatePreview from './components/EstimatePreview'
+import { uid } from './utils/uid'
 import './App.css'
 
-let _id = 0
-const uid = () => ++_id
-
+/** Factory for the initial sections array — one empty section with one line. */
 const defaultSections = () => [{
   id: uid(), title: '', price: '',
   lines: [{ id: uid(), description: '' }]
 }]
 
+/** Returns today's date formatted as MM/DD/YYYY for the default date field. */
 const today = () => {
   const d = new Date()
   const mm = String(d.getMonth() + 1).padStart(2, '0')
@@ -20,6 +28,7 @@ const today = () => {
 
 const DEFAULT_NOTES = 'Any additional work required beyond the agreed scope of work, including unforeseen conditions or client-requested changes, will be billed separately and clearly itemized on the final invoice.'
 
+/** Format a number as "1,234.00". Returns the string only — $ is added in JSX. */
 const fmt = n => (parseFloat(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 function App() {
@@ -37,7 +46,11 @@ function App() {
   })
   const [sections, setSections] = useState(defaultSections())
   const [loading, setLoading] = useState(false)
+  const [selectedClient, setSelectedClient] = useState(null)
+  const [selectedCompany, setSelectedCompany] = useState(null)
+  const [selectedManager, setSelectedManager] = useState(null)
 
+  // Running total: sum all section prices (stripping commas from formatted values).
   const total = sections.reduce((a, s) => a + (parseFloat(String(s.price).replace(/,/g, '')) || 0), 0)
 
   return (
@@ -58,6 +71,7 @@ function App() {
           <div className="app-header-total">
             Total: <span>${fmt(total)}</span>
           </div>
+          <a href="#/admin" style={{ fontSize: 12, color: 'var(--text-faint)', textDecoration: 'none', marginLeft: 12 }}>Admin</a>
         </div>
       </header>
 
@@ -73,6 +87,12 @@ function App() {
             uid={uid}
             loading={loading}
             setLoading={setLoading}
+            selectedClient={selectedClient}
+            setSelectedClient={setSelectedClient}
+            selectedCompany={selectedCompany}
+            setSelectedCompany={setSelectedCompany}
+            selectedManager={selectedManager}
+            setSelectedManager={setSelectedManager}
           />
         </div>
         <div className="panel-preview">
@@ -91,5 +111,4 @@ function App() {
   )
 }
 
-export { uid }
 export default App

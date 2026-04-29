@@ -1,3 +1,12 @@
+/**
+ * Read-only document preview — renders a scaled-down representation of the
+ * final estimate document. Updates in real time as the user types in the form.
+ *
+ * Layout mirrors the Word template: orange header banner, 2-column meta grid,
+ * numbered scope sections with line items, total bar, notes, and footer.
+ *
+ * Stateless — receives all data via props from App.jsx.
+ */
 import './EstimatePreview.css'
 
 export default function EstimatePreview({ form, sections, total, fmt }) {
@@ -35,7 +44,7 @@ export default function EstimatePreview({ form, sections, total, fmt }) {
         </div>
         <div className="preview-meta-cell">
           <div className="preview-meta-label">Managed by</div>
-          <div className="preview-meta-value">{form.managedBy || '—'}</div>
+          <div className="preview-meta-value">{form.managedBy ? form.managedBy.split('\n').map((line, i) => <span key={i}>{i > 0 && <br />}{line}</span>) : '—'}</div>
         </div>
         <div className="preview-meta-cell">
           <div className="preview-meta-label">Contact</div>
