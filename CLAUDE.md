@@ -251,7 +251,7 @@ The header building icon is inline SVG in `App.jsx`.
 
 Custom webkit scrollbar: 6px wide, transparent track, border-colored thumb with 3px radius.
 
-## Current State (2026-04-27)
+## Current State (2026-04-29)
 
 ### What's Done
 - Full UI redesign — sticky header, card-based form, live document preview
@@ -269,6 +269,7 @@ Custom webkit scrollbar: 6px wide, transparent track, border-colored thumb with 
 - Shared `API_URL` constant in `config.js`, `uid()` extracted to `utils/uid.js`
 - Codebase cleanup: removed dead code, deduplicated SearchableSelect exports (creatable prop), deleted unused scaffold files
 - Updated estimate template: T&C review notice, check payment address, fixed section numbering, consolidated terms
+- Codebase documentation: consistent comments across all source files — module/file-level docstrings, function purpose and parameter docs, key logic decisions explained (multiline pipeline, cascading auto-fill, template fix strategy, upsert matching keys)
 
 ### What's Not Yet Done
 - Preview multiline fields (prepared_for, project_location) don't render line breaks in the preview component
